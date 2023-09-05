@@ -7,6 +7,7 @@ using static UnityEditor.Progress;
 using System.ComponentModel;
 using System.Threading;
 using System.Linq;
+using static System.Random;
 
 public class DeckManager : MonoBehaviour
 {
@@ -15,8 +16,10 @@ public class DeckManager : MonoBehaviour
     [SerializeField] List<DigimonCrd> digimonCrds;
     [SerializeField] GameObject cardPrefab;// 카드보여주기 객체
     [SerializeField] GameObject TamaPrefab;// 카드보여주기 객체
-    [SerializeField] List<DigimonCrd> myCards;
-    [SerializeField] List<DigimonCrd> otherCards;
+    [SerializeField] List<DigimonCrd> myCards; // 내 패의 카드
+    [SerializeField] List<DigimonCrd> otherCards;//상대 패 카드
+    [SerializeField] List<DigimonCrd> mySecu; // 내 패의 카드
+    [SerializeField] List<DigimonCrd> othSecu;//상대 패 카드
     [SerializeField] List<DigimonCrd> myTama;//디지타마 추가 
     [SerializeField] Transform cardSpawnPoint;
     [SerializeField] Transform cardSpawnPointEnemy;
@@ -24,12 +27,18 @@ public class DeckManager : MonoBehaviour
     List<CardData> DigiTamaDeck;//디지타마 목록
     List<CardData> cardDataList;
     List<CardData> DigiCardDeck;// 디지몬 초기덱 
-    List<CardData> DigiCardBkUpDeck;
+    List<CardData> DigiCardBkUpDeck;// 멀리건용 백업리스트
+    List<CardData> DigiCardEnemyBkUpDeck;// 상대 유저 멀리건  
     List<CardData> DigiCardDeckEnemy;
-    [SerializeField] Transform myCardLeft;
-    [SerializeField] Transform myCardRight;
-    [SerializeField] Transform otherCardLeft;
-    [SerializeField] Transform otherCardRight;
+    [SerializeField] Transform myCardLeft; //유저가 뽑는 패 왼쪽
+    [SerializeField] Transform myCardRight;// 유저가 뽑는 패 오른쪽
+    [SerializeField] Transform otherCardLeft;// 상대가 뽑는패 왼쪽
+    [SerializeField] Transform otherCardRight;//상대가 뽑는패 오른쪽
+    [SerializeField] Transform mySecurityOver;//나의 시큐리티 맨 위쪽
+    [SerializeField] Transform mySecurityUnder;//나의 시큐리티 맨 아래쪽 
+    [SerializeField] Transform EnemySecurityOver;//나의 시큐리티 맨 위쪽
+    [SerializeField] Transform EnemySecurityUnder;//나의 시큐리티 맨 아래쪽 
+
     public string jsonFilePath = "C:\\Users\\lg\\Documents\\DigimonCard\\data.json";
     string jsonString = "";
     int iDigiDeckCount;//덱매수
@@ -40,15 +49,20 @@ public class DeckManager : MonoBehaviour
     {
            
         cardDataList= ParseJsonToCardList(jsonString);
-        DigiCardDeck = MakingDigiCadDeck(cardDataList);
+        DigiCardDeck = MakingDigiCadDeck(cardDataList);// 플레이 유저 덱 생성
+        Debug.Log("나의 덱 매수 :" +DigiCardDeck.Count);
         DigiCardBkUpDeck = DigiCardDeck.ToList();
-        Debug.Log("백업: " + DigiCardBkUpDeck[1].Card_Num);
-        DigiCardDeckEnemy = MakingDigiCadDeck(cardDataList);
+        DigiCardDeckEnemy = MakingDigiCadDeck(cardDataList);// 상대방 ai 덱 생성 
+        Debug.Log("상대 덱 매수 :" + DigiCardDeckEnemy.Count);
+        DigiCardEnemyBkUpDeck = DigiCardDeckEnemy.ToList();
         DigiTamaDeck = MakingDigiTamaDeck(cardDataList);
         iDigiDeckCount = DigiCardDeck.Count;
         iDigiTamaCount=DigiTamaDeck.Count;
         TurnManager.OnAddCard += AddCard;
-       
+        TurnManager.DoMulligan += DoMulligan;
+        TurnManager.OnAddSecurity += AddSecurity;
+
+
     }
     private void OnDestroy()
     {
@@ -74,6 +88,25 @@ public class DeckManager : MonoBehaviour
         }
     }
 
+
+    void SecurityAlignMent(bool isMine)
+    {
+
+        List<PRS> originCardPRSs = new List<PRS>();
+        if (isMine)
+            originCardPRSs = RoundAlignment(mySecurityOver, mySecurityUnder, myCards.Count, 0.5f, Vector3.one * 1.9f);
+        else
+            originCardPRSs = RoundAlignment(EnemySecurityOver, EnemySecurityUnder, otherCards.Count, 0.5f, Vector3.one * 1.9f);
+
+        var targetCards = isMine ? mySecu : othSecu;
+        for (int i = 0; i < targetCards.Count; i++)
+        {
+            var targetCard = targetCards[i];
+
+            targetCard.originPRS = originCardPRSs[i];
+            targetCard.MoveTransform(targetCard.originPRS, true, 0.5f);
+        }
+    }
     List<PRS> RoundAlignment(Transform leftTr, Transform rightTr, int objCount, float height, Vector3 scale)
     {
         float[] objLerps = new float[objCount];
@@ -109,9 +142,37 @@ public class DeckManager : MonoBehaviour
         return results;
 
     }
+     void DoMulligan(bool bMullChk)// 멀리건 실행 함수
+    {
+        if (bMullChk == true)
+        {
+            for (int i = 0; i < TurnManager.Inst.startCardCount; i++)
+            {
+
+                Destroy(myCards[0].gameObject);
+                myCards.Remove(myCards[0]);
+            }
+            DigiCardDeck.Clear();
+            DigiCardDeck = ShuffledDeck(DigiCardBkUpDeck.ToList());
+        }
+        else 
+        {
+            for (int i = 0; i < TurnManager.Inst.startCardCount; i++)
+            {
+
+                Destroy(otherCards[0].gameObject);
+                otherCards.Remove(otherCards[0]);
+            }
+
+            DigiCardDeckEnemy.Clear();
+            DigiCardEnemyBkUpDeck = ShuffledDeck(DigiCardEnemyBkUpDeck.ToList());
+
+        }
+    }
     public void Update()
     {
-        if (Input.GetKeyDown(KeyCode.X))
+      
+        if (Input.GetKeyDown(KeyCode.X)) //멀리건 버튼 
         {
             for (int i = 0; i < TurnManager.Inst.startCardCount; i++)
             {
@@ -119,42 +180,79 @@ public class DeckManager : MonoBehaviour
                 
                
                
-                Destroy(myCards[0].gameObject);
-                myCards.Remove(myCards[0]);
+                Destroy(otherCards[0].gameObject);
+                otherCards.Remove(otherCards[0]);
             }
            
             DigiCardDeck.Clear();
-            DigiCardDeck = DigiCardBkUpDeck.ToList();
+            DigiCardDeck = ShuffledDeck(DigiCardBkUpDeck.ToList());
            
             for (int i = 0; i < TurnManager.Inst.startCardCount; i++)
             {
                
-                AddCard(true, cardSpawnPoint);
+                AddCard(false, cardSpawnPointEnemy);
                 
             }
 
         }
+       
+        if(Input.GetKeyDown(KeyCode.C))
+            AddSecurity(true, cardSpawnPoint);
+
+        if (Input.GetKeyDown(KeyCode.V))
+            AddSecurity(false, cardSpawnPointEnemy);
+
+
+
     }
     
-    void AddCard(bool isMine,Transform cardSpawnPoint)
+    static List<CardData> ShuffledDeck(List<CardData> shuffleDeck)
     {
-        
+        var newShuffledDeck = new List<CardData>();
+        var listcCount = shuffleDeck.Count;
+
+        for (int i = 0; i < listcCount; i++)
+        {
+            var randomElementInList = Random.Range(0, shuffleDeck.Count);
+            newShuffledDeck.Add(shuffleDeck[randomElementInList]);
+            shuffleDeck.Remove(shuffleDeck[randomElementInList]);
+        }
+        return newShuffledDeck;
+    }
+    
+    void AddCard(bool isMine,Transform cardSpawnPoint) // 초기 드로우 및 카드 추가 함수 
+    {
+        bool isSec = true;
         var cardObject = Instantiate(cardPrefab, cardSpawnPoint.position, Utils.QI);
         var card = cardObject.GetComponent<DigimonCrd>();
-        card.Setup(DrawCard(isMine? DigiCardDeck:DigiCardDeckEnemy), isMine);
+        card.Setup(DrawCard(isMine? DigiCardDeck:DigiCardDeckEnemy), isMine,isSec);
         (isMine ? myCards : otherCards).Add(card);
 
         SetOriginOrder(isMine);
 
         CardAlignMent(isMine);
     }
-   
-    void AddTama(bool isMine)
+    void AddSecurity(bool isMine, Transform cardSpawnPoint) // Security 추가함수 
+    {
+        bool isSec = false;
+        var cardObject = Instantiate(cardPrefab, cardSpawnPoint.position, Utils.QI);
+        var card = cardObject.GetComponent<DigimonCrd>();
+        card.Setup(DrawCard(isMine ? DigiCardDeck : DigiCardDeckEnemy), isMine, isSec);
+        (isMine ? mySecu : othSecu).Add(card);
+
+        SetOriginOrder(isMine);
+
+        SecurityAlignMent(isMine);
+
+    }
+
+
+    void AddTama(bool isMine) // 디지타마 추가 함수 
     {
 
         var cardObject = Instantiate(TamaPrefab, TamaSpawnPoint.position, Utils.QI);
         var card1 = cardObject.GetComponent<DigimonCrd>();
-        card1.Setup(DrawTama(), isMine);
+  //      card1.Setup(DrawTama(), isMine);
         myTama.Add(card1);
         SetOriginOrder(true);
 
@@ -216,14 +314,19 @@ public class DeckManager : MonoBehaviour
         {
             int i_card_index_num = 0; // 카드정보   
             i_card_index_num = Random.Range(1, cardDataList.Count);
-            if (cardDataList[i_card_index_num].Card_Num == null || cardDataList[i_card_index_num].card_able == 0
+            while (cardDataList[i_card_index_num].Card_Num == null || cardDataList[i_card_index_num].card_able == 0
                 || cardDataList[i_card_index_num].stage.Equals("유년기"))
             {
-                continue;
+                i_card_index_num = Random.Range(1, cardDataList.Count);
 
             }
             cardDataList[i_card_index_num].card_able = cardDataList[i_card_index_num].card_able - 1;
             MakingDeck.Add(cardDataList[i_card_index_num]);
+        }
+
+        for (int i = 0; i < cardDataList.Count; i++)
+        {
+            cardDataList[i].card_able = 4;
         }
         return MakingDeck;
     }
@@ -239,4 +342,32 @@ public class DeckManager : MonoBehaviour
         }
         return MakingDeck;
     }
+
+    #region MyCard
+     public void CardMousOver(DigimonCrd card)
+    {
+       EnlargeCard(true, card);
+    }
+    public void CardMouseExit(DigimonCrd card)
+    {
+        EnlargeCard(false, card);
+    }
+    #endregion
+
+    void EnlargeCard(bool isEnlarge, DigimonCrd card)
+    {
+        if (isEnlarge)
+        {
+            Vector3 enlargePos = new Vector3(card.originPRS.pos.x, -4.8f, -10f);
+            card.MoveTransform(new PRS(enlargePos, Utils.QI, Vector3.one * 3.5f), false);
+        }
+        else
+            card.MoveTransform(card.originPRS, false);
+
+        card.GetComponent<Order>().SetMostFrontOrder(isEnlarge);
+
+
+    }
 }
+
+

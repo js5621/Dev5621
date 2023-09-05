@@ -46,7 +46,21 @@ public class DigimonCrd : MonoBehaviour
 
 
     bool isFront;
+    void OnMouseOver()
+    {
+        if (isFront)
+            DeckManager.Inst.CardMousOver(this);
 
+    }
+
+    void OnMouseExit()
+    {
+        if (isFront)
+            DeckManager.Inst.CardMouseExit(this);
+
+    }
+
+    
 
     public CardData getDigCardData(DigimonCrd tmp)
     {
@@ -67,7 +81,7 @@ public class DigimonCrd : MonoBehaviour
         return tmpData;
     }
 
-    public void Setup(CardData cData, bool isFront)
+    public void Setup(CardData cData, bool isFront,bool isSec)
     {
 
 
@@ -76,7 +90,10 @@ public class DigimonCrd : MonoBehaviour
             Card_Num = cData.Card_Num;
             Debug.Log(Card_Num);
             Debug.Log(cData.img);
-            card.sprite =  LoadImageFromUrl(cData.img,card);
+            if (isSec == true)
+                card.sprite = LoadImageFromUrl(cData.img, card);
+            else
+                card.sprite = cardBack;
             stage = cData.stage;
             Type = cData.Type;
             Shape = cData.Shape;
