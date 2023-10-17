@@ -8,6 +8,9 @@ using System.ComponentModel;
 using System.Threading;
 using System.Linq;
 using static System.Random;
+using UnityEngine.UI;
+using TMPro;
+using UnityEngine.Networking;
 
 public class DeckManager : MonoBehaviour
 {
@@ -38,6 +41,10 @@ public class DeckManager : MonoBehaviour
     [SerializeField] Transform mySecurityUnder;//나의 시큐리티 맨 아래쪽 
     [SerializeField] Transform EnemySecurityOver;//나의 시큐리티 맨 위쪽
     [SerializeField] Transform EnemySecurityUnder;//나의 시큐리티 맨 아래쪽 
+    [SerializeField] GameObject CardinfoDialog; // 카드설명창
+    [SerializeField] Image CardImageExplain; // 카드설명이미지
+    [SerializeField] TextMeshProUGUI CardExplainText; // 카드설명이미지
+
 
     public string jsonFilePath = "C:\\Users\\lg\\Documents\\DigimonCard\\data.json";
     string jsonString = "";
@@ -130,7 +137,7 @@ public class DeckManager : MonoBehaviour
             if (objCount >= 4)
             {
 
-               // float curve = Mathf.Sqrt(Mathf.Pow(height, 2) - Mathf.Pow(objLerps[i] - 0.5f, 2));
+                // float curve = Mathf.Sqrt(Mathf.Pow(height, 2) - Mathf.Pow(objLerps[i] - 0.5f, 2));
                 //curve = height >= 0 ? curve : -curve;
                 //targetPos.y += curve;
                 targerRot = Quaternion.Slerp(leftTr.rotation, rightTr.rotation, objLerps[i]);
@@ -203,9 +210,11 @@ public class DeckManager : MonoBehaviour
             AddSecurity(false, cardSpawnPointEnemy);
 
 
+        if (Input.GetKeyDown(KeyCode.T))
+            AddTama(true);
 
     }
-    
+
     static List<CardData> ShuffledDeck(List<CardData> shuffleDeck)
     {
         var newShuffledDeck = new List<CardData>();
@@ -225,7 +234,7 @@ public class DeckManager : MonoBehaviour
         bool isSec = true;
         var cardObject = Instantiate(cardPrefab, cardSpawnPoint.position, Utils.QI);
         var card = cardObject.GetComponent<DigimonCrd>();
-        card.Setup(DrawCard(isMine? DigiCardDeck:DigiCardDeckEnemy), isMine,isSec);
+        card.Setup(DrawCard(isMine? DigiCardDeck:DigiCardDeckEnemy), isMine,isSec,false);
         (isMine ? myCards : otherCards).Add(card);
 
         SetOriginOrder(isMine);
@@ -237,7 +246,7 @@ public class DeckManager : MonoBehaviour
         bool isSec = false;
         var cardObject = Instantiate(cardPrefab, cardSpawnPoint.position, Utils.QI);
         var card = cardObject.GetComponent<DigimonCrd>();
-        card.Setup(DrawCard(isMine ? DigiCardDeck : DigiCardDeckEnemy), isMine, isSec);
+        card.Setup(DrawCard(isMine ? DigiCardDeck : DigiCardDeckEnemy), isMine, isSec,false);
         (isMine ? mySecu : othSecu).Add(card);
 
         SetOriginOrder(isMine);
@@ -252,7 +261,7 @@ public class DeckManager : MonoBehaviour
 
         var cardObject = Instantiate(TamaPrefab, TamaSpawnPoint.position, Utils.QI);
         var card1 = cardObject.GetComponent<DigimonCrd>();
-  //      card1.Setup(DrawTama(), isMine);
+        card1.Setup(DrawTama(), isMine,true,true);
         myTama.Add(card1);
         SetOriginOrder(true);
 
@@ -346,11 +355,33 @@ public class DeckManager : MonoBehaviour
     #region MyCard
      public void CardMousOver(DigimonCrd card)
     {
-       EnlargeCard(true, card);
+        print("CardMouseOVer");
+        CardData tmpCardData;
+        CardinfoDialog.SetActive(true);
+        string strTmpExpl;// 설명텍스트 저장 
+        tmpCardData=card.getDigCardData(card);
+        strTmpExpl = "[카드명] : " +tmpCardData.Card_Num+"\n"+
+                     "[DP] : " + tmpCardData.DP.ToString() + "\n"
+                   + "[등장 코스트] : " + tmpCardData.Play_Cost + "\n"
+                   + "[진화 코스트] : " + tmpCardData.Evol_Cost1 + "\n"
+                   + "[효과] : " + tmpCardData.Effect + "\n"
+                   + "[진화원 효과] : " + tmpCardData.Soure_effect;
+        CardExplainText.text = strTmpExpl;
+        CardImageExplain.sprite = card.GetComponent<SpriteRenderer>().sprite; 
+       //LoadImageFromUrl(tmpCardData.img,CardImageExplain);
+
+
     }
     public void CardMouseExit(DigimonCrd card)
     {
-        EnlargeCard(false, card);
+        print("CardMouseExit");
+        CardinfoDialog.SetActive(false);
+
+        if (CardImageExplain != null)
+        {
+            CardImageExplain.sprite = null; // 이미지를 지웁니다.
+        }
+        //EnlargeCard(false, card);
     }
     #endregion
 
@@ -358,7 +389,7 @@ public class DeckManager : MonoBehaviour
     {
         if (isEnlarge)
         {
-            Vector3 enlargePos = new Vector3(card.originPRS.pos.x, -4.8f, -10f);
+            Vector3 enlargePos = new Vector3(card.originPRS.pos.x, -1.8f, -10f);
             card.MoveTransform(new PRS(enlargePos, Utils.QI, Vector3.one * 3.5f), false);
         }
         else
@@ -367,6 +398,64 @@ public class DeckManager : MonoBehaviour
         card.GetComponent<Order>().SetMostFrontOrder(isEnlarge);
 
 
+    }
+    /// <summary>
+    /// 이미지 참고 
+    /// </summary>
+    /// <param name="img"></param>
+    /// <param name="spriteRenderer"></param>
+    /// <returns></returns>
+    public void LoadImageFromUrl(string img, Image exImage)
+    {
+
+        StartCoroutine(LoadImageCoroutine(img));
+        
+    }
+
+    IEnumerator LoadImageCoroutine(string img)
+    {
+        using (UnityWebRequest webRequest = UnityWebRequestTexture.GetTexture(img))
+        {
+            yield return webRequest.SendWebRequest();
+
+            if (webRequest.result == UnityWebRequest.Result.ConnectionError || webRequest.result == UnityWebRequest.Result.ProtocolError)
+            {
+                Debug.LogError("Failed to download image: " + webRequest.error);
+            }
+            else
+            {
+                // 이미지 다운로드가 성공하면 Texture2D로 변환합니다.
+                Texture2D texture = DownloadHandlerTexture.GetContent(webRequest);
+
+                // Texture2D를 Sprite로 변환합니다.
+                Sprite sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                if (CardImageExplain != null)
+                {
+                    CardImageExplain.sprite = sprite;
+                }
+
+            }
+        }
+    }
+    private Texture2D ResizeTexture(Texture2D originalTexture, int newWidth, int newHeight)
+    {
+        Texture2D resizedTexture = new Texture2D(newWidth, newHeight);
+        for (int y = 0; y < newHeight; y++)
+        {
+            for (int x = 0; x < newWidth; x++)
+            {
+                Color newColor = originalTexture.GetPixelBilinear((float)x / newWidth, (float)y / newHeight);
+                resizedTexture.SetPixel(x, y, newColor);
+            }
+        }
+        resizedTexture.Apply();
+        return resizedTexture;
+    }
+    private void ResizeSpriteSize(SpriteRenderer spriteRenderer, float newWidth, float newHeight)
+    {
+        spriteRenderer.transform.localScale = new Vector3(newWidth / spriteRenderer.sprite.bounds.size.x,
+                                                         newHeight / spriteRenderer.sprite.bounds.size.y,
+                                                         1.0f);
     }
 }
 

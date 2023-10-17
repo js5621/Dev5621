@@ -37,6 +37,13 @@ public class GameManager : MonoBehaviour
             
         }
 
+        if (Input.GetKeyDown(KeyCode.N))
+        {
+
+            TurnManager.Inst.EndTurn();
+            
+
+        }
 
 
     }

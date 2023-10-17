@@ -46,9 +46,11 @@ public class DigimonCrd : MonoBehaviour
 
 
     bool isFront;
+    bool isCard;// 시큐리티 인지 카드인지 판정 
     void OnMouseOver()
     {
-        if (isFront)
+        print("isFront? :"+isFront);
+        if (isFront&&isCard)
             DeckManager.Inst.CardMousOver(this);
 
     }
@@ -60,12 +62,14 @@ public class DigimonCrd : MonoBehaviour
 
     }
 
+
     
 
     public CardData getDigCardData(DigimonCrd tmp)
     {
         CardData tmpData = new CardData();
         tmpData.Card_Num = tmp.Card_Num;
+        print(tmp.img);
         tmpData.img=tmp.img;
         tmpData.Type=tmp.Type;
         tmpData.Shape=tmp.Shape;
@@ -80,18 +84,20 @@ public class DigimonCrd : MonoBehaviour
 
         return tmpData;
     }
-
-    public void Setup(CardData cData, bool isFront,bool isSec)
+    
+    public void Setup(CardData cData, bool isFront,bool isCard, bool isTama)
     {
 
-
+        this.isFront = isFront;
+        this.isCard = isCard;
         if (isFront ==true)
         {
             Card_Num = cData.Card_Num;
             Debug.Log(Card_Num);
             Debug.Log(cData.img);
-            if (isSec == true)
-                card.sprite = LoadImageFromUrl(cData.img, card);
+            img = cData.img;
+            if (isCard == true)
+                card.sprite = LoadImageFromUrl(cData.img, card,isTama);
             else
                 card.sprite = cardBack;
             stage = cData.stage;
@@ -160,14 +166,14 @@ public class DigimonCrd : MonoBehaviour
 
     }
 
-    public Sprite LoadImageFromUrl(string img,SpriteRenderer spriteRenderer)
+    public Sprite LoadImageFromUrl(string img,SpriteRenderer spriteRenderer,bool isTama)
     {
         
-        StartCoroutine(LoadImageCoroutine(img, spriteRenderer));
+        StartCoroutine(LoadImageCoroutine(img, spriteRenderer,isTama));
         return spriteRenderer.sprite;
     }
 
-    private IEnumerator LoadImageCoroutine(string imageUrl, SpriteRenderer spriteRenderer)
+    private IEnumerator LoadImageCoroutine(string imageUrl, SpriteRenderer spriteRenderer, bool isTama)
     {
         // UnityWebRequest를 사용하여 이미지를 다운로드
         using (UnityWebRequest www = UnityWebRequestTexture.GetTexture(imageUrl))
@@ -183,9 +189,15 @@ public class DigimonCrd : MonoBehaviour
 
             // 다운로드된 텍스처를 Texture2D로 변환
             Texture2D texture = DownloadHandlerTexture.GetContent(www);
-            Texture2D resizedTexture = ResizeTexture(texture, texture.width/5, texture.height/5);//길이 측정 부분
 
-            // Texture2D를 Sprite로 변환
+            Texture2D resizedTexture;
+            resizedTexture = texture;
+            if (isTama ==true)
+                resizedTexture = ResizeTexture(texture, texture.width*2, texture.height*2);//길이 측정 부분
+            else
+                resizedTexture = ResizeTexture(texture, texture.width / 5, texture.height / 5);//길이 측정 부분
+                                                                                               // Texture2D를 Sprite로 변환
+
             Sprite sprite = Sprite.Create(resizedTexture, new Rect(0, 0, resizedTexture.width, resizedTexture.height), Vector2.one * 0.5f);
            
             // SpriteRenderer에 표시

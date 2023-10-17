@@ -67,6 +67,7 @@ public class TurnManager : MonoBehaviour
         }
         
         StartCoroutine(StartTurnCo());
+        StartCoroutine(MulliganCourtine());
     }
     IEnumerator MulliganCourtine()
     {
@@ -113,14 +114,15 @@ public class TurnManager : MonoBehaviour
     }
     IEnumerator StartTurnCo()
     {
-        StartCoroutine(MulliganCourtine());
+       
         isLoading = true;
         
         yield return delay07;
-        OnAddCard?.Invoke(myTurn, cardSpawnPoint);
+        OnAddCard?.Invoke(myTurn, myTurn?cardSpawnPoint : cardSpawnPointEnemy);
+    //   OnTurnStarted?.Invoke(false, cardSpawnPointEnemy);
         yield return delay07;
         isLoading = false;
-        OnTurnStarted?.Invoke(false,cardSpawnPointEnemy);
+       
 
     }
     
